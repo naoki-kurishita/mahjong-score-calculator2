@@ -797,6 +797,15 @@
         </div>
     </div>
 
+    <!-- Name Input Modal -->
+    <div id="nameModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center;">
+        <div style="background: white; border-radius: 16px; padding: 25px; width: 85%; max-width: 350px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+            <div style="font-size: 1.1em; font-weight: 700; margin-bottom: 15px; text-align: center;">あなたの名前を入力してください</div>
+            <input type="text" id="nameModalInput" placeholder="プレイヤー名" style="width: 100%; padding: 14px; font-size: 1.1em; border: 2px solid #e2e8f0; border-radius: 10px; text-align: center; outline: none; transition: border-color 0.3s;" onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#e2e8f0'">
+            <button id="nameModalOk" style="width: 100%; margin-top: 15px; padding: 14px; font-size: 1.1em; font-weight: 700; background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); color: white; border: none; border-radius: 10px; cursor: pointer;">OK</button>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div class="toast" id="toast"></div>
 
@@ -867,6 +876,35 @@
             gameStarted: false
         };
 
+        // Custom name input modal (replaces prompt())
+        function showNameModal(defaultName) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('nameModal');
+                const input = document.getElementById('nameModalInput');
+                const okBtn = document.getElementById('nameModalOk');
+
+                input.value = '';
+                modal.style.display = 'flex';
+
+                setTimeout(() => input.focus(), 100);
+
+                function submit() {
+                    const name = input.value.trim() || defaultName;
+                    modal.style.display = 'none';
+                    okBtn.removeEventListener('click', submit);
+                    input.removeEventListener('keydown', onKey);
+                    resolve(name);
+                }
+
+                function onKey(e) {
+                    if (e.key === 'Enter') submit();
+                }
+
+                okBtn.addEventListener('click', submit);
+                input.addEventListener('keydown', onKey);
+            });
+        }
+
         // Room Management Functions
         function generateRoomCode() {
             const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excluding similar looking characters
@@ -894,17 +932,17 @@
                     createRoom();
                 } else {
                     // Create new room
-                    const userName = prompt('あなたの名前を入力してください:') || 'プレイヤー1';
-                    
-                    roomRef.set({
-                        host: userName,
-                        created: Date.now(),
-                        participants: {
-                            [userName]: { joined: Date.now(), index: 0 }
-                        },
-                        gameState: null
-                    }).then(() => {
-                        joinRoomByCode(roomCode, userName);
+                    showNameModal('プレイヤー1').then((userName) => {
+                        roomRef.set({
+                            host: userName,
+                            created: Date.now(),
+                            participants: {
+                                [userName]: { joined: Date.now(), index: 0 }
+                            },
+                            gameState: null
+                        }).then(() => {
+                            joinRoomByCode(roomCode, userName);
+                        });
                     });
                 }
             });
@@ -924,8 +962,9 @@
                 return;
             }
 
-            const userName = prompt('あなたの名前を入力してください:') || 'プレイヤー';
-            joinRoomByCode(roomCode, userName);
+            showNameModal('プレイヤー').then((userName) => {
+                joinRoomByCode(roomCode, userName);
+            });
         }
 
         function joinRoomByCode(roomCode, userName) {
