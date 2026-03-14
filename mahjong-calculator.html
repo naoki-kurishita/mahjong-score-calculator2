@@ -894,7 +894,7 @@
                     createRoom();
                 } else {
                     // Create new room
-                    const userName = prompt('あなたの名前を入力してください:', 'プレイヤー1') || 'プレイヤー1';
+                    const userName = prompt('あなたの名前を入力してください:') || 'プレイヤー1';
                     
                     roomRef.set({
                         host: userName,
@@ -924,7 +924,7 @@
                 return;
             }
 
-            const userName = prompt('あなたの名前を入力してください:', 'プレイヤー') || 'プレイヤー';
+            const userName = prompt('あなたの名前を入力してください:') || 'プレイヤー';
             joinRoomByCode(roomCode, userName);
         }
 
@@ -1045,23 +1045,28 @@
                 if (roomGameState) {
                     const wasNotStarted = !gameState.gameStarted;
                     const nowStarted = roomGameState.gameStarted;
-                    
-                    console.log('wasNotStarted:', wasNotStarted);
-                    console.log('nowStarted:', nowStarted);
-                    
+                    const previousRounds = gameState.rounds ? gameState.rounds.length : 0;
+                    const newRounds = roomGameState.rounds ? roomGameState.rounds.length : 0;
+
                     // Update local game state from room
                     Object.assign(gameState, roomGameState);
                     updateUI();
                     updateScoreboard();
                     updateHistory();
-                    
+
                     // Update room screen: hide start button, show game status
                     if (nowStarted) {
                         updateRoomGameStatus(true);
                     }
 
+                    // If a new round was saved, switch everyone to scoreboard
+                    if (newRounds > previousRounds && previousRounds > 0) {
+                        console.log('📊 New round saved! Switching to scoreboard...');
+                        switchTab('scoreboard');
+                        showToast('スコアが更新されました！');
+                    }
                     // If game just started, switch to game tab
-                    if (wasNotStarted && nowStarted) {
+                    else if (wasNotStarted && nowStarted) {
                         console.log('🎮 Game just started! Switching to game tab...');
 
                         // Enable game tab
@@ -1071,8 +1076,6 @@
                         // Switch to game tab
                         switchTab('game');
                         showToast('ゲームが開始されました！');
-                    } else {
-                        console.log('Not switching tabs. wasNotStarted:', wasNotStarted, 'nowStarted:', nowStarted);
                     }
                 } else {
                     console.log('No gameState received from Firebase');
