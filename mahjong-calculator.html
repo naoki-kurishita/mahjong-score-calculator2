@@ -1060,7 +1060,7 @@
                     }
 
                     // If a new round was saved, switch everyone to scoreboard
-                    if (newRounds > previousRounds && previousRounds > 0) {
+                    if (newRounds > previousRounds && newRounds > 0) {
                         console.log('📊 New round saved! Switching to scoreboard...');
                         switchTab('scoreboard');
                         showToast('スコアが更新されました！');
