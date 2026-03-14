@@ -602,7 +602,7 @@
                 </button>
 
                 <button class="btn btn-danger" onclick="leaveRoom()" style="margin-top: 10px;">
-                    ルームから退出
+                    ルームを解散
                 </button>
             </div>
         </div>
@@ -974,11 +974,20 @@
                     // Listen to room updates
                     setupRoomListeners();
                     
+                    // Lock player name inputs (names come from room participants)
+                    for (let i = 1; i <= 4; i++) {
+                        const input = document.getElementById(`player${i}`);
+                        if (input) {
+                            input.readOnly = true;
+                            input.style.background = '#f1f5f9';
+                        }
+                    }
+
                     // Show room info
                     document.getElementById('roomSelection').style.display = 'none';
                     document.getElementById('roomInfo').style.display = 'block';
                     document.getElementById('currentRoomCode').textContent = roomCode;
-                    
+
                     showToast(`ルーム ${roomCode} に参加しました`);
                 });
             });
@@ -1090,28 +1099,59 @@
                 }
             });
             
+            // Listen for room dissolved event (someone pressed leave)
+            currentRoomRef.child('roomDissolved').on('value', (snapshot) => {
+                const dissolved = snapshot.val();
+                if (dissolved) {
+                    console.log('🚪 Room dissolved - forcing all players to leave');
+                    forceLeaveRoom();
+                }
+            });
+
             // Setup listener for settings inputs (uma, tobiuma, chipPrice)
             setupSettingsListeners();
         }
 
         function leaveRoom() {
-            if (!currentRoomRef || !confirm('ルームから退出しますか？')) return;
+            if (!currentRoomRef || !confirm('ルームを解散しますか？全員が退出されます。')) return;
+
+            // Notify all players that room is dissolved
+            currentRoomRef.child('roomDissolved').set(true);
+        }
+
+        // Called when roomDissolved flag is detected
+        function forceLeaveRoom() {
+            if (!currentRoomRef) return;
 
             // Remove listeners
             currentRoomRef.off();
-            
+
+            // Delete the room from Firebase
+            currentRoomRef.remove().catch(() => {});
+
             // Clear saved room info
             localStorage.removeItem('currentRoomCode');
             localStorage.removeItem('currentUserName');
-            
+
             currentRoomRef = null;
             currentRoomCode = null;
-            
+
+            // Reset player name inputs to editable and clear
+            for (let i = 1; i <= 4; i++) {
+                const input = document.getElementById(`player${i}`);
+                if (input) {
+                    input.readOnly = false;
+                    input.style.background = '';
+                    input.value = '';
+                }
+            }
+
             document.getElementById('roomSelection').style.display = 'block';
             document.getElementById('roomInfo').style.display = 'none';
             document.getElementById('roomCodeInput').value = '';
-            
-            showToast('ルームから退出しました');
+
+            switchTab('room');
+            showToast('ルームが解散されました');
         }
 
         // Sync settings input to Firebase
@@ -1232,11 +1272,20 @@
                         // Setup listeners
                         setupRoomListeners();
                         
+                        // Lock player name inputs
+                        for (let i = 1; i <= 4; i++) {
+                            const input = document.getElementById(`player${i}`);
+                            if (input) {
+                                input.readOnly = true;
+                                input.style.background = '#f1f5f9';
+                            }
+                        }
+
                         // Show room info
                         document.getElementById('roomSelection').style.display = 'none';
                         document.getElementById('roomInfo').style.display = 'block';
                         document.getElementById('currentRoomCode').textContent = savedRoomCode;
-                        
+
                         showToast(`ルーム ${savedRoomCode} に再接続しました`);
                     } else {
                         // Room no longer exists, clear saved data
