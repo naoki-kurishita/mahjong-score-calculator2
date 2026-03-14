@@ -2221,9 +2221,28 @@
             // Hide buttons since game is ending
             document.getElementById('nextRoundBtn').style.display = 'none';
             document.getElementById('endGameBtn').style.display = 'none';
-            
-            // End game without confirmation
-            endGame();
+
+            // Update scoreboard and show final results (keep game data intact)
+            updateScoreboard();
+            switchTab('scoreboard');
+            showToast('ゲームを終了しました');
+
+            // Notify all players that game has ended
+            if (currentRoomRef) {
+                console.log('📡 Notifying game end from skipChipsAndFinish');
+                currentRoomRef.child('gameEnded').set(true)
+                    .then(() => {
+                        console.log('✅ gameEnded set to true');
+                    })
+                    .catch((error) => {
+                        console.error('❌ Failed to set gameEnded:', error);
+                    });
+
+                // Reset the flag after a moment
+                setTimeout(() => {
+                    currentRoomRef.child('gameEnded').set(false);
+                }, 500);
+            }
         }
 
         // End Game
