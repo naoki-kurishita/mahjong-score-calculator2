@@ -596,12 +596,20 @@
                     <div id="participantList"></div>
                 </div>
 
-                <button class="btn btn-primary" onclick="startGameFromRoom()">
+                <button class="btn btn-primary" id="roomStartGameBtn" onclick="startGameFromRoom()">
                     <span>🎮</span>
                     <span>ゲーム開始</span>
                 </button>
 
-                <button class="btn btn-danger" onclick="leaveRoom()" style="margin-top: 10px;">
+                <div id="roomGameStatus" style="display: none; background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); color: white; padding: 20px; border-radius: 12px; text-align: center;">
+                    <div style="font-size: 1.3em; font-weight: 700; margin-bottom: 8px;">🎮 ゲーム進行中</div>
+                    <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 15px;">あなたはこのゲームに参加しています</div>
+                    <button class="btn btn-success" onclick="switchTab('game')" style="background: rgba(255,255,255,0.2); border: 2px solid white;">
+                        ゲーム画面へ移動
+                    </button>
+                </div>
+
+                <button class="btn btn-danger" id="roomLeaveBtn" onclick="leaveRoom()" style="margin-top: 10px;">
                     ルームを解散
                 </button>
             </div>
@@ -1047,14 +1055,19 @@
                     updateScoreboard();
                     updateHistory();
                     
+                    // Update room screen: hide start button, show game status
+                    if (nowStarted) {
+                        updateRoomGameStatus(true);
+                    }
+
                     // If game just started, switch to game tab
                     if (wasNotStarted && nowStarted) {
                         console.log('🎮 Game just started! Switching to game tab...');
-                        
+
                         // Enable game tab
                         document.getElementById('gameTab').style.pointerEvents = 'auto';
                         document.getElementById('gameTab').style.opacity = '1';
-                        
+
                         // Switch to game tab
                         switchTab('game');
                         showToast('ゲームが開始されました！');
@@ -1149,6 +1162,9 @@
             document.getElementById('roomSelection').style.display = 'block';
             document.getElementById('roomInfo').style.display = 'none';
             document.getElementById('roomCodeInput').value = '';
+
+            // Reset room game status
+            updateRoomGameStatus(false);
 
             switchTab('room');
             showToast('ルームが解散されました');
@@ -1335,6 +1351,17 @@
             }
         }
 
+        // Update room screen to show game-in-progress status
+        function updateRoomGameStatus(gameInProgress) {
+            const startBtn = document.getElementById('roomStartGameBtn');
+            const statusDiv = document.getElementById('roomGameStatus');
+            const leaveBtn = document.getElementById('roomLeaveBtn');
+
+            if (startBtn) startBtn.style.display = gameInProgress ? 'none' : 'flex';
+            if (statusDiv) statusDiv.style.display = gameInProgress ? 'block' : 'none';
+            if (leaveBtn) leaveBtn.style.display = gameInProgress ? 'none' : 'block';
+        }
+
         // Start Game
         function startGame() {
             console.log('=== startGame called ===');
@@ -1378,7 +1405,10 @@
             // Enable game tab
             document.getElementById('gameTab').style.pointerEvents = 'auto';
             document.getElementById('gameTab').style.opacity = '1';
-            
+
+            // Update room screen status
+            updateRoomGameStatus(true);
+
             // Switch to game tab
             switchTab('game');
             showToast('ゲームを開始しました！');
@@ -2283,6 +2313,9 @@
         }
 
         function updateUI() {
+            // Update room game status
+            updateRoomGameStatus(gameState.gameStarted);
+
             if (gameState.gameStarted) {
                 setupScoreInputs();
                 updateScoreboard();
