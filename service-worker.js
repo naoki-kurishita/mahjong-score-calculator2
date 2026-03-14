@@ -1,5 +1,6 @@
-const CACHE_NAME = 'mahjong-calculator-v1';
+const CACHE_NAME = 'mahjong-calculator-v2';
 const urlsToCache = [
+  '/',
   '/mahjong-calculator.html',
   '/manifest.json'
 ];
