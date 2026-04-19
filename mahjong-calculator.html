@@ -1638,13 +1638,24 @@
         }
 
         // Calculate Final Scores with Uma
+        // 偶数丸め（Banker's rounding）: .5 のとき偶数側に丸める
+        function roundHalfToEven(x) {
+            const remainder = x - Math.floor(x);
+            if (Math.abs(remainder - 0.5) < 0.0001) {
+                const floor = Math.floor(x);
+                const ceil = Math.ceil(x);
+                return (Math.abs(floor) % 2 === 0) ? floor : ceil;
+            }
+            return Math.round(x);
+        }
+
         function calculateFinalScores(rawScores, tobiPlayerIndex = null) {
             const { uma1, uma2, uma3, uma4, calculationBase, tobiuma } = gameState.settings;
-            
+
             console.log('=== Calculate Final Scores ===');
             console.log('Raw scores:', rawScores);
             console.log('Tobi player index:', tobiPlayerIndex);
-            
+
             // Create array with player index and raw score
             const playersWithScores = rawScores.map((score, index) => ({
                 index,
@@ -1658,59 +1669,49 @@
             console.log('Sorted:');
             playersWithScores.forEach((p, i) => console.log(`  ${i+1}位: Player ${p.index}, ${p.rawScore}点`));
 
-            // Calculate adjusted scores for 2nd, 3rd, and 4th place
-            playersWithScores[1].adjustedScore = (playersWithScores[1].rawScore - calculationBase) / 1000 + uma2;
-            playersWithScores[2].adjustedScore = (playersWithScores[2].rawScore - calculationBase) / 1000 + uma3;
-            playersWithScores[3].adjustedScore = (playersWithScores[3].rawScore - calculationBase) / 1000 + uma4;
+            // ① (素点 − 基準点) ÷ 1000 して四捨五入（偶数丸め）
+            const umaList = [uma1, uma2, uma3, uma4];
+            playersWithScores.forEach((player, rank) => {
+                player.adjustedScore = roundHalfToEven((player.rawScore - calculationBase) / 1000);
+            });
 
-            console.log('Before rounding:');
-            console.log(`  2位: ${playersWithScores[1].adjustedScore}`);
-            console.log(`  3位: ${playersWithScores[2].adjustedScore}`);
-            console.log(`  4位: ${playersWithScores[3].adjustedScore}`);
+            console.log('① (素点-基準点)÷1000 → 四捨五入:');
+            playersWithScores.forEach((p, i) => console.log(`  ${i+1}位: ${p.adjustedScore}`));
 
-            // Add tobiuma if there's a tobi (before rounding)
-            if (tobiPlayerIndex !== null) {
-                // Find the tobi player in sorted array
-                const tobiPlayerInSorted = playersWithScores.find(p => p.index === tobiPlayerIndex);
-                if (tobiPlayerInSorted && tobiPlayerInSorted !== playersWithScores[0]) {
-                    tobiPlayerInSorted.adjustedScore += tobiuma;
-                    console.log(`Added ${tobiuma} to tobi player (Player ${tobiPlayerIndex})`);
-                }
-                
-                // Subtract tobiuma from players with negative raw scores
-                playersWithScores.forEach((player, idx) => {
-                    if (player.rawScore < 0 && idx !== 0) {
-                        player.adjustedScore -= tobiuma;
-                        console.log(`Subtracted ${tobiuma} from Player ${player.index} (negative score)`);
-                    }
-                });
-            }
-
-            // CRITICAL: Round 2nd, 3rd, 4th place scores first
-            playersWithScores[1].adjustedScore = Math.round(playersWithScores[1].adjustedScore);
-            playersWithScores[2].adjustedScore = Math.round(playersWithScores[2].adjustedScore);
-            playersWithScores[3].adjustedScore = Math.round(playersWithScores[3].adjustedScore);
-
-            console.log('After rounding:');
-            console.log(`  2位: ${playersWithScores[1].adjustedScore}`);
-            console.log(`  3位: ${playersWithScores[2].adjustedScore}`);
-            console.log(`  4位: ${playersWithScores[3].adjustedScore}`);
-
-            // Then calculate 1st place to ensure total is exactly 0
+            // ② ゼロサム計算: 1位 = -(2位+3位+4位)
             const othersSum = playersWithScores[1].adjustedScore + playersWithScores[2].adjustedScore + playersWithScores[3].adjustedScore;
             playersWithScores[0].adjustedScore = -othersSum;
 
+            console.log('② ゼロサム計算:');
             console.log(`  1位: ${playersWithScores[0].adjustedScore} (= -(${othersSum}))`);
 
-            // Handle tobi for 1st place (if they're the tobi player)
-            if (tobiPlayerIndex !== null && playersWithScores[0].index === tobiPlayerIndex) {
-                playersWithScores[0].adjustedScore += tobiuma;
-                console.log(`Added ${tobiuma} to 1st place (tobi player)`);
-                // Adjust to maintain zero sum
-                const adjustment = tobiuma / 3;
-                playersWithScores[1].adjustedScore -= Math.round(adjustment);
-                playersWithScores[2].adjustedScore -= Math.round(adjustment);
-                playersWithScores[3].adjustedScore -= Math.round(adjustment - (tobiuma - Math.round(adjustment) * 3));
+            // ③ ウマをプラス
+            playersWithScores[0].adjustedScore += uma1;
+            playersWithScores[1].adjustedScore += uma2;
+            playersWithScores[2].adjustedScore += uma3;
+            playersWithScores[3].adjustedScore += uma4;
+
+            console.log('③ ウマ加算後:');
+            playersWithScores.forEach((p, i) => console.log(`  ${i+1}位: ${p.adjustedScore} (ウマ ${umaList[i]})`));
+
+            // ④ トビウマ計算（ゼロサム移動）
+            if (tobiPlayerIndex !== null) {
+                const negativeCount = playersWithScores.filter(p => p.rawScore < 0).length;
+
+                // トバした人: +tobiuma × 飛んだ人数
+                const tobiPlayer = playersWithScores.find(p => p.index === tobiPlayerIndex);
+                if (tobiPlayer && negativeCount > 0) {
+                    tobiPlayer.adjustedScore += tobiuma * negativeCount;
+                    console.log(`④ トビウマ: Player ${tobiPlayerIndex} gets +${tobiuma * negativeCount} (${tobiuma} × ${negativeCount})`);
+                }
+
+                // 飛んだ人: -tobiuma each
+                playersWithScores.forEach(player => {
+                    if (player.rawScore < 0) {
+                        player.adjustedScore -= tobiuma;
+                        console.log(`④ トビウマ: Player ${player.index} gets -${tobiuma}`);
+                    }
+                });
             }
 
             // Create result array in original order
