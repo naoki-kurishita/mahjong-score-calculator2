@@ -689,7 +689,7 @@
 
             <div style="background: #dbeafe; padding: 12px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #3b82f6;">
                 <div style="font-size: 0.9em; color: #1e40af;">
-                    💡 <strong style="background: #ef4444; color: white; padding: 4px 10px; border-radius: 4px;">±</strong>ボタン：マイナス点の時に数字を入力してからタップしてください
+                    💡 <strong style="background: #ef4444; color: white; padding: 4px 10px; border-radius: 4px;">±</strong>ボタン：マイナス点の時にタップ → 数字を入力
                 </div>
             </div>
 
@@ -1513,22 +1513,19 @@
             const input = document.getElementById(`score${playerIndex}`);
             const btn = document.getElementById(`minusBtn${playerIndex}`);
             let value = input.value.trim();
-            
-            if (value === '' || value === '0') {
-                // Do nothing if empty or zero
-                return;
-            }
-            
+
             if (value.startsWith('-')) {
                 // Remove minus
-                input.value = value.substring(1);
+                input.value = value.substring(1) || '';
                 btn.style.background = '#ef4444';
             } else {
-                // Add minus
+                // Add minus (even if empty — user can type number after)
                 input.value = '-' + value;
                 btn.style.background = '#059669';
+                // Focus the input so user can type immediately
+                input.focus();
             }
-            
+
             syncScoreInput(playerIndex);
             checkForNegativeScores();
         }
@@ -1538,20 +1535,16 @@
             const input = document.getElementById(`chip${playerIndex}`);
             const btn = document.getElementById(`chipMinusBtn${playerIndex}`);
             let value = input.value.trim();
-            
-            if (value === '' || value === '0') {
-                // Do nothing if empty or zero
-                return;
-            }
-            
+
             if (value.startsWith('-')) {
                 // Remove minus
-                input.value = value.substring(1);
+                input.value = value.substring(1) || '';
                 btn.style.background = '#ef4444';
             } else {
-                // Add minus
+                // Add minus (even if empty)
                 input.value = '-' + value;
                 btn.style.background = '#059669';
+                input.focus();
             }
         }
 
