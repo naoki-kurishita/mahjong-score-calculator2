@@ -1299,7 +1299,8 @@
         document.addEventListener('DOMContentLoaded', () => {
             loadGameState();
             updateUI();
-            
+            updateTabStates();
+
             // Auto-reconnect to room if available
             autoReconnectToRoom();
         });
@@ -1362,9 +1363,14 @@
 
         // Tab Switching
         function switchTab(tabName) {
+            // Block non-room tabs if game hasn't started yet
+            if (tabName !== 'room' && !gameState.gameStarted) {
+                return;
+            }
+
             // Update tab buttons
             document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
-            
+
             // Find and activate the correct tab button
             const tabButtons = {
                 'room': document.querySelector('.nav-tab:nth-child(1)'),
@@ -1373,7 +1379,7 @@
                 'scoreboard': document.querySelector('.nav-tab:nth-child(4)'),
                 'history': document.querySelector('.nav-tab:nth-child(5)')
             };
-            
+
             if (tabButtons[tabName]) {
                 tabButtons[tabName].classList.add('active');
             }
@@ -1390,6 +1396,29 @@
             // Update history when switching to it
             if (tabName === 'history') {
                 updateHistory();
+            }
+
+            // Update tab visual states
+            updateTabStates();
+        }
+
+        // Update tab enabled/disabled appearance
+        function updateTabStates() {
+            const tabs = document.querySelectorAll('.nav-tab');
+            if (!gameState.gameStarted) {
+                // Disable non-room tabs visually
+                tabs.forEach((tab, i) => {
+                    if (i > 0) {
+                        tab.style.opacity = '0.4';
+                        tab.style.pointerEvents = 'none';
+                    }
+                });
+            } else {
+                // Enable all tabs
+                tabs.forEach(tab => {
+                    tab.style.opacity = '1';
+                    tab.style.pointerEvents = 'auto';
+                });
             }
         }
 
@@ -1445,10 +1474,6 @@
             // Show end game button
             document.getElementById('endGameBtn').style.display = 'block';
             
-            // Enable game tab
-            document.getElementById('gameTab').style.pointerEvents = 'auto';
-            document.getElementById('gameTab').style.opacity = '1';
-
             // Update room screen status
             updateRoomGameStatus(true);
 
@@ -2302,8 +2327,9 @@
             if (endGameBtn) {
                 endGameBtn.style.display = 'none';
             }
-            
-            switchTab('setup');
+
+            updateTabStates();
+            switchTab('room');
             showToast('ゲームを終了しました');
         }
 
