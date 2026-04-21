@@ -534,20 +534,24 @@
             pointer-events: none !important;
             user-select: none !important;
         }
-        #setupContent.setup-locked input,
-        #setupContent.setup-locked button {
+        #setupContent.setup-locked input {
             pointer-events: none !important;
             background: #f1f5f9 !important;
             cursor: not-allowed !important;
             opacity: 0.7 !important;
         }
+        #setupContent.setup-locked button {
+            pointer-events: none !important;
+            cursor: not-allowed !important;
+        }
+        /* Keep the gradient visible on the locked start button — just dim a touch */
         #setupContent.setup-locked #setupStartGameBtn {
-            opacity: 0.5 !important;
+            opacity: 0.75 !important;
         }
         /* Also lock the room-tab "ゲーム開始" button when setup is locked */
         #roomStartGameBtn.room-start-locked {
             pointer-events: none !important;
-            opacity: 0.5 !important;
+            opacity: 0.75 !important;
             cursor: not-allowed !important;
         }
     </style>
@@ -1568,7 +1572,6 @@
             console.log('currentRoomRef:', currentRoomRef);
 
             // Guard: once round 1 has been saved (= round 2+), block re-starting.
-            // The setup lock notice is shown in this state.
             if ((gameState.rounds || []).length >= 1) {
                 showToast('2回戦目以降はゲームを再開始できません。ルームを解散してください。');
                 return;
