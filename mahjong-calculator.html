@@ -519,11 +519,36 @@
             .header h1 {
                 font-size: 1.5em;
             }
-            
+
             .score-input {
                 width: 110px;
                 font-size: 1em;
             }
+        }
+
+        /* Setup lock: full-block pointer/keyboard interaction for setup controls.
+           Applied when game has advanced past round 1. */
+        #setupContent.setup-locked .game-setup,
+        #setupContent.setup-locked .settings-group,
+        #setupContent.setup-locked #setupStartGameBtn {
+            pointer-events: none !important;
+            user-select: none !important;
+        }
+        #setupContent.setup-locked input,
+        #setupContent.setup-locked button {
+            pointer-events: none !important;
+            background: #f1f5f9 !important;
+            cursor: not-allowed !important;
+            opacity: 0.7 !important;
+        }
+        #setupContent.setup-locked #setupStartGameBtn {
+            opacity: 0.5 !important;
+        }
+        /* Also lock the room-tab "ゲーム開始" button when setup is locked */
+        #roomStartGameBtn.room-start-locked {
+            pointer-events: none !important;
+            opacity: 0.5 !important;
+            cursor: not-allowed !important;
         }
     </style>
 </head>
@@ -1388,64 +1413,79 @@
             // Function kept for oninput handlers, but no display updates needed
         }
 
-        // Lock / unlock setup inputs and game-start buttons
-        // Locks once the 1st round has been saved (i.e., entering round 2+).
+        // Block all interaction events. Used as an event-level fallback
+        // in case attributes / CSS get bypassed by some edge case.
+        function __blockSetupEvent(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.target && typeof e.target.blur === 'function') {
+                e.target.blur();
+            }
+            return false;
+        }
+
+        // Lock / unlock setup inputs and game-start buttons.
+        // Locks once the 1st round has been saved (entering round 2+).
         // Unlocks only when the room is disbanded (gameState reset).
         function updateSetupLockState() {
             const savedRounds = (gameState.rounds || []).length;
             const isLocked = savedRounds >= 1;
 
-            const lockInput = (input) => {
+            const setupContent = document.getElementById('setupContent');
+            if (setupContent) {
+                setupContent.classList.toggle('setup-locked', isLocked);
+            }
+
+            const roomStartBtn = document.getElementById('roomStartGameBtn');
+            if (roomStartBtn) {
+                roomStartBtn.classList.toggle('room-start-locked', isLocked);
+            }
+
+            const lockableInputIds = ['uma1', 'uma2', 'tobiuma', 'chipPrice',
+                                     'player1', 'player2', 'player3', 'player4'];
+            lockableInputIds.forEach(id => {
+                const input = document.getElementById(id);
                 if (!input) return;
                 if (isLocked) {
                     input.readOnly = true;
                     input.disabled = true;
                     input.setAttribute('tabindex', '-1');
-                    input.style.pointerEvents = 'none';
-                    input.style.background = '#f1f5f9';
-                    input.style.cursor = 'not-allowed';
-                    input.style.opacity = '0.7';
+                    // Event-level fallback: swallow any interaction
+                    ['mousedown', 'click', 'keydown', 'touchstart', 'focus', 'input', 'change']
+                        .forEach(evt => {
+                            input.removeEventListener(evt, __blockSetupEvent, true);
+                            input.addEventListener(evt, __blockSetupEvent, true);
+                        });
                 } else {
-                    input.readOnly = false;
+                    // Only unlock inputs that aren't meant to stay readonly
+                    // (initialPoints / calculationBase are always readonly via HTML)
                     input.disabled = false;
+                    // Player-name inputs keep their readonly state from room join,
+                    // handled elsewhere. Setting readOnly=false here is fine
+                    // because forceLeaveRoom explicitly clears them.
+                    if (['uma1', 'uma2', 'tobiuma', 'chipPrice'].includes(id)) {
+                        input.readOnly = false;
+                    }
                     input.removeAttribute('tabindex');
-                    input.style.pointerEvents = '';
-                    input.style.background = '';
-                    input.style.cursor = '';
-                    input.style.opacity = '';
+                    ['mousedown', 'click', 'keydown', 'touchstart', 'focus', 'input', 'change']
+                        .forEach(evt => input.removeEventListener(evt, __blockSetupEvent, true));
                 }
-            };
-
-            // Lock the editable setup inputs (uma / tobiuma / chipPrice)
-            ['uma1', 'uma2', 'tobiuma', 'chipPrice'].forEach(id => {
-                lockInput(document.getElementById(id));
             });
 
-            // Lock player-name inputs when entering round 2+
-            // (They are already locked via room join, but we enforce again here.)
-            for (let i = 1; i <= 4; i++) {
-                const input = document.getElementById(`player${i}`);
-                if (!input) continue;
-                if (isLocked) {
-                    input.readOnly = true;
-                    input.disabled = true;
-                    input.setAttribute('tabindex', '-1');
-                    input.style.pointerEvents = 'none';
-                    input.style.background = '#f1f5f9';
-                    input.style.cursor = 'not-allowed';
-                    input.style.opacity = '0.7';
-                }
-                // Do NOT auto-unlock here — room join/leave logic handles it.
-            }
-
-            // Disable both "ゲーム開始" buttons
             ['setupStartGameBtn', 'roomStartGameBtn'].forEach(id => {
                 const btn = document.getElementById(id);
                 if (!btn) return;
                 btn.disabled = isLocked;
-                btn.style.pointerEvents = isLocked ? 'none' : '';
-                btn.style.opacity = isLocked ? '0.5' : '';
-                btn.style.cursor = isLocked ? 'not-allowed' : '';
+                if (isLocked) {
+                    ['mousedown', 'click', 'touchstart']
+                        .forEach(evt => {
+                            btn.removeEventListener(evt, __blockSetupEvent, true);
+                            btn.addEventListener(evt, __blockSetupEvent, true);
+                        });
+                } else {
+                    ['mousedown', 'click', 'touchstart']
+                        .forEach(evt => btn.removeEventListener(evt, __blockSetupEvent, true));
+                }
             });
         }
 
