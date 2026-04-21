@@ -835,6 +835,15 @@
         </div>
     </div>
 
+    <!-- Tie-breaker Modal (同点時の上家選択) -->
+    <div id="kamichaModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center;">
+        <div style="background: white; border-radius: 16px; padding: 25px; width: 85%; max-width: 380px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+            <div id="kamichaModalTitle" style="font-size: 1.1em; font-weight: 700; margin-bottom: 6px; text-align: center;">同点です</div>
+            <div id="kamichaModalSubtitle" style="font-size: 0.9em; color: #64748b; margin-bottom: 18px; text-align: center;">上家（順位が上）はどちらですか？</div>
+            <div id="kamichaModalOptions"></div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div class="toast" id="toast"></div>
 
@@ -1806,12 +1815,79 @@
             return Math.round(x);
         }
 
-        function calculateFinalScores(rawScores, tobiPlayerIndex = null) {
+        // Ask user to pick the higher-ranked (上家) player among tied indices.
+        // Returns a Promise<number> of the chosen player index.
+        function askKamichaModal(tiedIndices) {
+            return new Promise(resolve => {
+                const modal = document.getElementById('kamichaModal');
+                const subtitle = document.getElementById('kamichaModalSubtitle');
+                const list = document.getElementById('kamichaModalOptions');
+
+                subtitle.textContent = '上家（順位が上）はどちらですか？';
+                list.innerHTML = '';
+
+                tiedIndices.forEach(idx => {
+                    const name = (gameState.players[idx] && gameState.players[idx].name) || `プレイヤー${idx + 1}`;
+                    const btn = document.createElement('button');
+                    btn.style.cssText = 'display: block; width: 100%; margin-top: 10px; padding: 14px; font-size: 1.05em; font-weight: 700; background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); color: white; border: none; border-radius: 10px; cursor: pointer;';
+                    btn.textContent = name;
+                    btn.onclick = () => {
+                        modal.style.display = 'none';
+                        resolve(idx);
+                    };
+                    list.appendChild(btn);
+                });
+
+                modal.style.display = 'flex';
+            });
+        }
+
+        // Given raw scores, return a Promise<number[]> of player indices ordered
+        // by final rank (index 0 = 1st place). When scores are tied, the user
+        // is prompted to pick the 上家 via modal. For 3-way ties we ask twice
+        // (pick 1st among three, then pick 1st among the remaining two).
+        async function resolveRankOrder(rawScores) {
+            const indexed = rawScores.map((s, i) => ({ score: s, index: i }));
+            indexed.sort((a, b) => b.score - a.score);
+
+            // Group by equal score
+            const groups = [];
+            let current = [indexed[0]];
+            for (let i = 1; i < indexed.length; i++) {
+                if (indexed[i].score === current[0].score) {
+                    current.push(indexed[i]);
+                } else {
+                    groups.push(current);
+                    current = [indexed[i]];
+                }
+            }
+            groups.push(current);
+
+            const finalOrder = [];
+            for (const group of groups) {
+                if (group.length === 1) {
+                    finalOrder.push(group[0].index);
+                    continue;
+                }
+                const remaining = group.slice();
+                while (remaining.length > 1) {
+                    const chosen = await askKamichaModal(remaining.map(p => p.index));
+                    finalOrder.push(chosen);
+                    const at = remaining.findIndex(p => p.index === chosen);
+                    remaining.splice(at, 1);
+                }
+                finalOrder.push(remaining[0].index);
+            }
+            return finalOrder;
+        }
+
+        function calculateFinalScores(rawScores, tobiPlayerIndex = null, rankOrder = null) {
             const { uma1, uma2, uma3, uma4, calculationBase, tobiuma } = gameState.settings;
 
             console.log('=== Calculate Final Scores ===');
             console.log('Raw scores:', rawScores);
             console.log('Tobi player index:', tobiPlayerIndex);
+            console.log('Rank order override:', rankOrder);
 
             // Create array with player index and raw score
             const playersWithScores = rawScores.map((score, index) => ({
@@ -1820,8 +1896,14 @@
                 adjustedScore: score
             }));
 
-            // Sort by raw score (descending)
-            playersWithScores.sort((a, b) => b.rawScore - a.rawScore);
+            if (rankOrder && rankOrder.length === rawScores.length) {
+                // Use user-provided rank order (handles tie-breaks)
+                playersWithScores.sort((a, b) =>
+                    rankOrder.indexOf(a.index) - rankOrder.indexOf(b.index));
+            } else {
+                // Sort by raw score (descending) — ties fall back to index order
+                playersWithScores.sort((a, b) => b.rawScore - a.rawScore);
+            }
 
             console.log('Sorted:');
             playersWithScores.forEach((p, i) => console.log(`  ${i+1}位: Player ${p.index}, ${p.rawScore}点`));
@@ -1977,9 +2059,9 @@
         }
 
         // Save Round
-        function saveRound() {
+        async function saveRound() {
             console.log('=== saveRound called ===');
-            
+
             const scores = [];
             let hasNegative = false;
             
@@ -2026,8 +2108,16 @@
                 tobiPlayerIndex = parseInt(tobiPlayerIndex);
             }
 
-            // Calculate final scores
-            const finalScores = calculateFinalScores(scores, tobiPlayerIndex);
+            // Detect ties and ask user for 上家 order before calculating
+            const hasTie = new Set(scores).size !== scores.length;
+            let rankOrder = null;
+            if (hasTie) {
+                rankOrder = await resolveRankOrder(scores);
+                console.log('Resolved rank order (tie-break):', rankOrder);
+            }
+
+            // Calculate final scores (pass rankOrder when ties were resolved)
+            const finalScores = calculateFinalScores(scores, tobiPlayerIndex, rankOrder);
 
             if (editingRoundIndex !== null) {
                 // Editing existing round
