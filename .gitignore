@@ -33,4 +33,6 @@ node_modules/
 # Temporary files
 *.tmp
 .cache/
-_
+
+# Archive folder (renamed from _)
+archive/

@@ -617,6 +617,13 @@
 
         <!-- Setup Section -->
         <div id="setupContent" class="content">
+            <div id="setupLockNotice" style="display: none; background: #fef3c7; padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #f59e0b;">
+                <div style="font-weight: 700; color: #92400e; margin-bottom: 5px;">🔒 セットアップはロック中</div>
+                <div style="font-size: 0.9em; color: #78350f;">
+                    2回戦目に入ったため、セットアップは変更できません。<br>
+                    設定を変更するには「ルームを解散」してください。
+                </div>
+            </div>
             <div class="game-setup">
                 <div class="section-title">プレイヤー名を入力</div>
                 <div class="player-inputs">
@@ -675,7 +682,7 @@
                 </div>
             </div>
 
-            <button class="btn btn-primary" onclick="startGame()">
+            <button class="btn btn-primary" id="setupStartGameBtn" onclick="startGame()">
                 <span>🎮</span>
                 <span>ゲーム開始</span>
             </button>
@@ -1197,9 +1204,30 @@
                 if (input) {
                     input.readOnly = false;
                     input.style.background = '';
+                    input.style.cursor = '';
                     input.value = '';
                 }
             }
+
+            // Reset local game state so the setup unlocks for the next room
+            gameState = {
+                players: [],
+                rounds: [],
+                currentRound: 0,
+                settings: {
+                    initialPoints: 25000,
+                    calculationBase: 30000,
+                    uma1: 25,
+                    uma2: 10,
+                    uma3: -10,
+                    uma4: -25,
+                    tobiuma: 10,
+                    chipPrice: 2
+                },
+                gameStarted: false
+            };
+            localStorage.setItem('mahjongGameState', JSON.stringify(gameState));
+            updateSetupLockState();
 
             document.getElementById('roomSelection').style.display = 'block';
             document.getElementById('roomInfo').style.display = 'none';
@@ -1240,10 +1268,16 @@
         }
 
         function startGameFromRoom() {
+            // Guard: once round 1 has been saved, the game is past setup.
+            if ((gameState.rounds || []).length >= 1) {
+                showToast('2回戦目以降はゲームを再開始できません。ルームを解散してください。');
+                return;
+            }
+
             currentRoomRef.child('participants').once('value').then((snapshot) => {
                 const participants = snapshot.val() || {};
                 const participantNames = Object.keys(participants);
-                
+
                 if (participantNames.length < 2) {
                     alert('最低2人のプレイヤーが必要です');
                     return;
@@ -1361,6 +1395,51 @@
             // Function kept for oninput handlers, but no display updates needed
         }
 
+        // Lock / unlock setup inputs and game-start buttons
+        // Locks once the 1st round has been saved (i.e., entering round 2+).
+        // Unlocks only when the room is disbanded (gameState reset).
+        function updateSetupLockState() {
+            const savedRounds = (gameState.rounds || []).length;
+            const isLocked = savedRounds >= 1;
+
+            // Lock the editable setup inputs
+            const settingIds = ['uma1', 'uma2', 'tobiuma', 'chipPrice'];
+            settingIds.forEach(id => {
+                const input = document.getElementById(id);
+                if (!input) return;
+                input.readOnly = isLocked;
+                input.disabled = isLocked;
+                input.style.background = isLocked ? '#f1f5f9' : '';
+                input.style.cursor = isLocked ? 'not-allowed' : '';
+            });
+
+            // Lock player-name inputs too (they may already be locked by room join)
+            for (let i = 1; i <= 4; i++) {
+                const input = document.getElementById(`player${i}`);
+                if (!input) continue;
+                if (isLocked) {
+                    input.readOnly = true;
+                    input.style.background = '#f1f5f9';
+                    input.style.cursor = 'not-allowed';
+                }
+            }
+
+            // Disable both "ゲーム開始" buttons
+            ['setupStartGameBtn', 'roomStartGameBtn'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+                btn.disabled = isLocked;
+                btn.style.opacity = isLocked ? '0.5' : '';
+                btn.style.cursor = isLocked ? 'not-allowed' : '';
+            });
+
+            // Show / hide the lock notice on the setup tab
+            const notice = document.getElementById('setupLockNotice');
+            if (notice) {
+                notice.style.display = isLocked ? 'block' : 'none';
+            }
+        }
+
         // Tab Switching
         function switchTab(tabName) {
             // Block non-room tabs if game hasn't started yet
@@ -1438,7 +1517,14 @@
         function startGame() {
             console.log('=== startGame called ===');
             console.log('currentRoomRef:', currentRoomRef);
-            
+
+            // Guard: once round 1 has been saved (= round 2+), block re-starting.
+            // The setup lock notice is shown in this state.
+            if ((gameState.rounds || []).length >= 1) {
+                showToast('2回戦目以降はゲームを再開始できません。ルームを解散してください。');
+                return;
+            }
+
             const player1 = document.getElementById('player1').value.trim() || 'プレイヤー1';
             const player2 = document.getElementById('player2').value.trim() || 'プレイヤー2';
             const player3 = document.getElementById('player3').value.trim() || 'プレイヤー3';
@@ -1467,7 +1553,8 @@
             console.log('Game state before save:', gameState);
             saveGameState();
             setupScoreInputs();
-            
+            updateSetupLockState();
+
             // Show next round button
             document.getElementById('nextRoundBtn').style.display = 'block';
             
@@ -1937,6 +2024,9 @@
                 // Increment round
                 gameState.currentRound++;
 
+                // Lock setup inputs / game-start buttons now that round 1 is saved
+                updateSetupLockState();
+
                 showToast('スコアを保存しました！');
             }
 
@@ -2329,6 +2419,7 @@
             }
 
             updateTabStates();
+            updateSetupLockState();
             switchTab('room');
             showToast('ゲームを終了しました');
         }
@@ -2397,6 +2488,9 @@
         function updateUI() {
             // Update room game status
             updateRoomGameStatus(gameState.gameStarted);
+
+            // Sync setup lock based on current round
+            updateSetupLockState();
 
             if (gameState.gameStarted) {
                 setupScoreInputs();
