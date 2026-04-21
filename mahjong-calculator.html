@@ -617,13 +617,6 @@
 
         <!-- Setup Section -->
         <div id="setupContent" class="content">
-            <div id="setupLockNotice" style="display: none; background: #fef3c7; padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #f59e0b;">
-                <div style="font-weight: 700; color: #92400e; margin-bottom: 5px;">🔒 セットアップはロック中</div>
-                <div style="font-size: 0.9em; color: #78350f;">
-                    2回戦目に入ったため、セットアップは変更できません。<br>
-                    設定を変更するには「ルームを解散」してください。
-                </div>
-            </div>
             <div class="game-setup">
                 <div class="section-title">プレイヤー名を入力</div>
                 <div class="player-inputs">
@@ -1402,26 +1395,47 @@
             const savedRounds = (gameState.rounds || []).length;
             const isLocked = savedRounds >= 1;
 
-            // Lock the editable setup inputs
-            const settingIds = ['uma1', 'uma2', 'tobiuma', 'chipPrice'];
-            settingIds.forEach(id => {
-                const input = document.getElementById(id);
+            const lockInput = (input) => {
                 if (!input) return;
-                input.readOnly = isLocked;
-                input.disabled = isLocked;
-                input.style.background = isLocked ? '#f1f5f9' : '';
-                input.style.cursor = isLocked ? 'not-allowed' : '';
+                if (isLocked) {
+                    input.readOnly = true;
+                    input.disabled = true;
+                    input.setAttribute('tabindex', '-1');
+                    input.style.pointerEvents = 'none';
+                    input.style.background = '#f1f5f9';
+                    input.style.cursor = 'not-allowed';
+                    input.style.opacity = '0.7';
+                } else {
+                    input.readOnly = false;
+                    input.disabled = false;
+                    input.removeAttribute('tabindex');
+                    input.style.pointerEvents = '';
+                    input.style.background = '';
+                    input.style.cursor = '';
+                    input.style.opacity = '';
+                }
+            };
+
+            // Lock the editable setup inputs (uma / tobiuma / chipPrice)
+            ['uma1', 'uma2', 'tobiuma', 'chipPrice'].forEach(id => {
+                lockInput(document.getElementById(id));
             });
 
-            // Lock player-name inputs too (they may already be locked by room join)
+            // Lock player-name inputs when entering round 2+
+            // (They are already locked via room join, but we enforce again here.)
             for (let i = 1; i <= 4; i++) {
                 const input = document.getElementById(`player${i}`);
                 if (!input) continue;
                 if (isLocked) {
                     input.readOnly = true;
+                    input.disabled = true;
+                    input.setAttribute('tabindex', '-1');
+                    input.style.pointerEvents = 'none';
                     input.style.background = '#f1f5f9';
                     input.style.cursor = 'not-allowed';
+                    input.style.opacity = '0.7';
                 }
+                // Do NOT auto-unlock here — room join/leave logic handles it.
             }
 
             // Disable both "ゲーム開始" buttons
@@ -1429,15 +1443,10 @@
                 const btn = document.getElementById(id);
                 if (!btn) return;
                 btn.disabled = isLocked;
+                btn.style.pointerEvents = isLocked ? 'none' : '';
                 btn.style.opacity = isLocked ? '0.5' : '';
                 btn.style.cursor = isLocked ? 'not-allowed' : '';
             });
-
-            // Show / hide the lock notice on the setup tab
-            const notice = document.getElementById('setupLockNotice');
-            if (notice) {
-                notice.style.display = isLocked ? 'block' : 'none';
-            }
         }
 
         // Tab Switching
